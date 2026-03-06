@@ -1,0 +1,29 @@
+$tokenUrl = "https://$instance.service-now.com/oauth_token.do"
+
+# YOUR VALUES HERE
+$clientId = "YOUR_CLIENT_ID"
+$clientSecret = "YOUR_CLIENT_SECRET" 
+$username = "YOUR_USERNAME"
+$password = "YOUR_PASSWORD"
+
+# Build form-urlencoded body (ISE 5.1 SAFE)
+$bodyString = @(
+    "grant_type=password",
+    "client_id=$clientId",
+    "client_secret=$clientSecret",
+    "username=$username",
+    "password=$password",
+    "scope=offline_access"
+) -join '&'
+
+Write-Host "Sending to: $tokenUrl" -ForegroundColor Cyan
+Write-Host "Body preview: $($bodyString.Substring(0,50))..." -ForegroundColor Gray
+
+# Get tokens
+$tokenResponse = Invoke-RestMethod -Uri $tokenUrl -Method Post -Body $bodyString -ContentType "application/x-www-form-urlencoded"
+
+# SHOW FULL TOKENS (visible in ISE!)
+Write-Host "`n✅ SUCCESS!" -ForegroundColor Green
+Write-Host "Access Token:  $($tokenResponse.access_token)" -ForegroundColor White
+Write-Host "Refresh Token: $($tokenResponse.refresh_token)" -ForegroundColor Yellow
+Write-Host "Expires in:   $($tokenResponse.expires_in) seconds" -ForegroundColor Cyan
