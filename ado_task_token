@@ -1,0 +1,40 @@
+# Azure DevOps Pipeline PowerShell Task - Show Full Tokens
+steps:
+- task: PowerShell@2
+  displayName: 'Get ServiceNow OAuth Token (Full Display)'
+  inputs:
+    targetType: 'inline'
+    script: |
+      $tokenUrl = "$(ServiceNowInstanceUrl)/oauth_token.do"
+      
+      $body = @{
+        grant_type    = "password"
+        client_id     = "$(ServiceNowClientId)"
+        client_secret = "$(ServiceNowClientSecret)"
+        username      = "$(ServiceNowUsername)"
+        password      = "$(ServiceNowPassword)"
+        scope         = "offline_access"
+      }
+      
+      $response = Invoke-RestMethod -Uri $tokenUrl -Method Post -Body ($body | ConvertTo-UriEncodedSplat) -ContentType "application/x-www-form-urlencoded"
+      
+      # Display FULL tokens (visible in logs)
+      Write-Host "=== SERVICE NOW TOKENS ===" -ForegroundColor Cyan
+      Write-Host "FULL Access Token:  $($response.access_token)" -ForegroundColor Green
+      Write-Host "FULL Refresh Token: $($response.refresh_token)" -ForegroundColor Yellow
+      Write-Host "Access Token Length: $($response.access_token.Length)" -ForegroundColor White
+      Write-Host "Refresh Token Length: $($response.refresh_token.Length)" -ForegroundColor White
+      Write-Host "========================" -ForegroundColor Cyan
+      
+      # Still store as secure variables for later use
+      Write-Host "##vso[task.setvariable variable=ServiceNowAccessToken;issecret=true]$($response.access_token)"
+      Write-Host "##vso[task.setvariable variable=ServiceNowRefreshToken;issecret=true]$($response.refresh_token)"
+      
+      Write-Host "Tokens stored as pipeline variables successfully"
+    pwsh: true
+  env:
+    ServiceNowInstanceUrl: $(ServiceNowInstanceUrl)
+    ServiceNowClientId: $(ServiceNowClientId)
+    ServiceNowClientSecret: $(ServiceNowClientSecret)
+    ServiceNowUsername: $(ServiceNowUsername)
+    ServiceNowPassword: $(ServiceNowPassword)
