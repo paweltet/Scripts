@@ -1,0 +1,21 @@
+- task: PowerShell@2
+  displayName: 'Test Firewall'
+  inputs:
+    script: |
+      # Try simple external HTTPS
+      try {
+        Invoke-WebRequest -Uri "https://google.com" -TimeoutSec 10
+        Write-Host "✅ External HTTPS works"
+      }
+      catch {
+        Write-Host "❌ External HTTPS BLOCKED - Firewall confirmed"
+      }
+      
+      # Test ServiceNow specifically
+      try {
+        Invoke-WebRequest -Uri "https://dev12345.service-now.com/" -TimeoutSec 10 -Method Head
+        Write-Host "✅ ServiceNow reachable"
+      }
+      catch {
+        Write-Host "❌ ServiceNow BLOCKED - Add firewall rule"
+      }
