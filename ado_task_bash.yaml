@@ -1,11 +1,13 @@
-# Azure DevOps Pipeline Bash Task - Show Full Tokens
 steps:
 - task: Bash@3
   displayName: 'Get ServiceNow OAuth Token (Full Display)'
   inputs:
     targetType: 'inline'
     script: |
-      tokenUrl="${ServiceNowInstanceUrl}/oauth_token.do"
+      set -euo pipefail
+      set -x
+      
+      tokenUrl="$(SERVICENOWINSTANCEURL)"
 
       echo "Requesting token from: $tokenUrl"
 
@@ -13,17 +15,13 @@ steps:
       response=$(curl -s -X POST "$tokenUrl" \
         -H "Content-Type: application/x-www-form-urlencoded" \
         -d "grant_type=password" \
-        -d "client_id=${ServiceNowClientId}" \
-        -d "client_secret=${ServiceNowClientSecret}" \
-        -d "username=${ServiceNowUsername}" \
-        -d "password=${ServiceNowPassword}" \
-        -d "scope=offline_access")
+        -d "client_id=${SERVICENOWCLIENTID}" \
+        -d "client_secret=${SERVICENOWCLIENTSECRET}" \
+        -d "username=${SERVICENOWUSERNAME}" \
+        -d "password=${SERVICENOWPASSWORD}")
 
-      # Parse tokens using jq (ensure jq is available in the agent)
-      access_token=$(echo "$response" | jq -r '.access_token')
-      refresh_token=$(echo "$response" | jq -r '.refresh_token')
-
-      # Display FULL tokens (visible in logs)
+      access_token=$(echo "$response" | grep -o '"access_token":"[^"]*' | cut -d'"' -f4")
+      refresh_token=$(echo "$response" | grep -o '"refresh_token":"[^"]*' | cut -d'"' -f4")
       echo -e "\033[0;36m=== SERVICE NOW TOKENS ===\033[0m"
       echo -e "\033[0;32mFULL Access Token:\033[0m  $access_token"
       echo -e "\033[1;33mFULL Refresh Token:\033[0m $refresh_token"
