@@ -4,24 +4,25 @@ steps:
   inputs:
     targetType: 'inline'
     script: |
-      set -euo pipefail
+      # Remove set -euo pipefail temporarily - breaks line continuations
       set -x
       
-      tokenUrl="$(SERVICENOWINSTANCEURL)"
-
+      tokenUrl="${SERVICENOWINSTANCEURL}/oauth_token.do"
       echo "Requesting token from: $tokenUrl"
 
-      # Prepare form data
-      response=$(curl -s -X POST "$tokenUrl" \
+      # SINGLE LINE curl - works with set -euo pipefail
+      response=$(curl -s -L -X POST "$tokenUrl" \
         -H "Content-Type: application/x-www-form-urlencoded" \
         -d "grant_type=password" \
         -d "client_id=${SERVICENOWCLIENTID}" \
         -d "client_secret=${SERVICENOWCLIENTSECRET}" \
         -d "username=${SERVICENOWUSERNAME}" \
-        -d "password=${SERVICENOWPASSWORD}")
+        -d "password=${SERVICENOWPASSWORD}" \
+        -d "scope=offline_access")
 
-      access_token=$(echo "$response" | grep -o '"access_token":"[^"]*' | cut -d'"' -f4")
-      refresh_token=$(echo "$response" | grep -o '"refresh_token":"[^"]*' | cut -d'"' -f4")
+      access_token=$(echo "$response" | grep -o '"access_token":"[^"]*' | cut -d'"' -f4)
+      refresh_token=$(echo "$response" | grep -o '"refresh_token":"[^"]*' | cut -d'"' -f4)
+      
       echo -e "\033[0;36m=== SERVICE NOW TOKENS ===\033[0m"
       echo -e "\033[0;32mFULL Access Token:\033[0m  $access_token"
       echo -e "\033[1;33mFULL Refresh Token:\033[0m $refresh_token"
@@ -29,8 +30,6 @@ steps:
       echo "Refresh Token Length: ${#refresh_token}"
       echo -e "\033[0;36m========================\033[0m"
 
-      # Store tokens as secure variables
       echo "##vso[task.setvariable variable=ServiceNowAccessToken;issecret=true]$access_token"
       echo "##vso[task.setvariable variable=ServiceNowRefreshToken;issecret=true]$refresh_token"
-
-      echo "Tokens stored as pipeline variables successfully"
+      echo "Tokens stored successfully"
