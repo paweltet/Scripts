@@ -1,0 +1,15 @@
+$tokenUrl = "https://YOUR_INSTANCE.service-now.com/oauth_token.do"
+$body = @{
+    grant_type    = "password"
+    client_id     = "YOUR_CLIENT_ID" 
+    client_secret = "YOUR_CLIENT_SECRET"
+    username      = "YOUR_USERNAME"
+    password      = "YOUR_PASSWORD"
+    scope         = "offline_access"
+}
+
+$response = Invoke-RestMethod -Uri $tokenUrl -Method Post -Body ($body | ConvertTo-UriEncodedSplat) -ContentType "application/x-www-form-urlencoded"
+
+Write-Host "FULL Access Token:  $($response.access_token)" -ForegroundColor Green
+Write-Host "FULL Refresh Token: $($response.refresh_token)" -ForegroundColor Yellow
+Write-Host "Token Length:       $($response.refresh_token.Length)"
