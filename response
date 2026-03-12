@@ -1,21 +1,51 @@
-API Call up update ServiceRequest Task in ServiceNow:
+steps:
+- task: Bash@3
+  displayName: 'Update ServiceNow SCTASK (POST)'
+  inputs:
+    targetType: 'inline'
+    script: |
+      # Colors for logging
+      red='\033[0;31m'; green='\033[0;32m'; yellow='\033[1;33m'; NC='\033[0m'
+      
+      SCTASK_ID="${{ parameters.SCTASKID }}"
+      HOST_UUID="${{ parameters.HOST_UUID }}"
+      
+      if [ -z "$SCTASK_ID" ] || [ -z "$access_token" ]; then
+        echo -e "${red}Missing SCTASK_ID or access_token${NC}"
+        exit 1
+      fi
+      
+      BODY=$(cat <<EOF
+      {
+        "SCTASKID":"${SCTASK_ID}",
+        "WORKLOG_DESCRIPTION":"${HOST_UUID} successfully Restarted !",
+        "STATUS":"COMPLETED"
+      }
+      EOF
+      )
+      
+      echo -e "${yellow}POST updating SCTASK $SCTASK_ID...${NC}"
+      
+      RESPONSE=$(curl -s -w "\nHTTP:%{http_code}" -X POST \
+        "https://${ServiceNowInstance}/api/now/table/sc_task/${SCTASK_ID}" \
+        -H "Content-Type: application/json" \
+        -H "Accept: application/json" \
+        -H "Authorization: Bearer $access_token" \
+        -d "$BODY")
 
-URL –  
-POST : https://xxx.service-now.com/api/
-
-
-Headers – 
-Content-Type : application/json 
-Accept : application/json 
-Authorization : Bearer $access_token
-
-
-Expected JSON request body –
-
-
-
-{
-"SCTASKID":"${{ parameters.SCTASKID }}",
-"WORKLOG_DESCRIPTION":"${{ parameters.HOST_UUID }} successfully Restarted ! ",
-"STATUS":"COMPlETED"
-}
+      HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+      BODY=$(echo "$RESPONSE" | sed '$d')
+      
+      echo "HTTP: $HTTP_CODE"
+      echo "Response: $BODY"
+      
+      if [ "$HTTP_CODE" -eq 200 ]; then
+        echo -e "${green}SCTASK updated successfully via POST${NC}"
+      else
+        echo -e "${red}POST update failed${NC}"
+        exit 1
+      fi
+  env:
+    access_token: $(ServiceNowAccessToken)
+    ServiceNowInstance: $(ServiceNowInstance)
+  continueOnError: false
