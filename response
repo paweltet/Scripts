@@ -1,51 +1,60 @@
-steps:
-- task: Bash@3
-  displayName: 'Update ServiceNow SCTASK (POST)'
-  inputs:
-    targetType: 'inline'
-    script: |
-      # Colors for logging
-      red='\033[0;31m'; green='\033[0;32m'; yellow='\033[1;33m'; NC='\033[0m'
-      
-      SCTASK_ID="${{ parameters.SCTASKID }}"
-      HOST_UUID="${{ parameters.HOST_UUID }}"
-      
-      if [ -z "$SCTASK_ID" ] || [ -z "$access_token" ]; then
-        echo -e "${red}Missing SCTASK_ID or access_token${NC}"
-        exit 1
-      fi
-      
-      BODY=$(cat <<EOF
-      {
-        "SCTASKID":"${SCTASK_ID}",
-        "WORKLOG_DESCRIPTION":"${HOST_UUID} successfully Restarted !",
-        "STATUS":"COMPLETED"
-      }
-      EOF
-      )
-      
-      echo -e "${yellow}POST updating SCTASK $SCTASK_ID...${NC}"
-      
-      RESPONSE=$(curl -s -w "\nHTTP:%{http_code}" -X POST \
-        "https://${ServiceNowInstance}/api/now/table/sc_task/${SCTASK_ID}" \
-        -H "Content-Type: application/json" \
-        -H "Accept: application/json" \
-        -H "Authorization: Bearer $access_token" \
-        -d "$BODY")
+    - task: Bash@3
+      displayName: 'Get ServiceNow Access Token'
+      inputs:
+        targetType: 'Inline'
+        script: |
+          set -x
+          
+          tokenUrl="https://${SERVICENOWINSTANCEURL}"
+          echo "Requesting token from: $tokenUrl"
 
-      HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-      BODY=$(echo "$RESPONSE" | sed '$d')
-      
-      echo "HTTP: $HTTP_CODE"
-      echo "Response: $BODY"
-      
-      if [ "$HTTP_CODE" -eq 200 ]; then
-        echo -e "${green}SCTASK updated successfully via POST${NC}"
-      else
-        echo -e "${red}POST update failed${NC}"
-        exit 1
-      fi
-  env:
-    access_token: $(ServiceNowAccessToken)
-    ServiceNowInstance: $(ServiceNowInstance)
-  continueOnError: false
+          # SINGLE LINE curl - works with set -euo pipefail
+          response=$(curl -s -L -X POST "$tokenUrl" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            --data-urlencode "grant_type=refresh_token" \
+            --data-urlencode "client_id=${SERVICENOWCLIENTID}" \
+            --data-urlencode "client_secret=${SERVICENOWCLIENTSECRET}" \
+            --data-urlencode "refresh_token=${REFRESHTOKEN}")
+
+          access_token=$(echo "$response" | grep -o '"access_token":"[^"]*' | cut -d'"' -f4)          
+          echo -e "\033[0;36m=== SERVICE NOW ACCESS TOKEN ===\033[0m"
+          echo -e "\033[0;32mFULL Access Token:\033[0m  $access_token"
+          # Set access token variable
+          echo "##vso[task.setvariable variable=ServiceNowAccessToken;issecret=true]$access_token"
+          echo "Access tokens stored as variable"                                                                     
+
+    - task: Bash@3
+      displayName: 'Update ServiceNow SCTASK (POST)'
+      inputs:
+        targetType: 'inline'
+        script: |
+          
+ 
+          BODY=$(cat <<EOF
+          {
+            "SCTASKID":"${{ parameters.SCTASKID }}",
+            "WORKLOG_DESCRIPTION":"${{ parameters.HOST_UUID }} successfully Restarted !",
+            "STATUS":"COMPLETED"
+          }
+          EOF
+          )
+          echo "=== REQUEST BODY ==="
+          echo "$BODY"
+          echo "===================="
+
+          echo -e "${yellow}POST updating SCTASK ${{ parameters.SCTASKID }}...${NC}"
+          
+          RESPONSE=$(curl -s -L -X POST \
+            "https://${RESPONSEURL}" \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
+            -H "Authorization: Bearer $access_token" \
+            -d "$BODY")
+
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          
+          echo "Response: $BODY"
+          
+      env:
+        access_token: $(ServiceNowAccessToken)
+      continueOnError: false
