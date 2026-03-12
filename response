@@ -1,0 +1,21 @@
+API Call up update ServiceRequest Task in ServiceNow:
+
+URL –  
+POST : https://xxx.service-now.com/api/
+
+
+Headers – 
+Content-Type : application/json 
+Accept : application/json 
+Authorization : Bearer $access_token
+
+
+Expected JSON request body –
+
+
+
+{
+"SCTASKID":"${{ parameters.SCTASKID }}",
+"WORKLOG_DESCRIPTION":"${{ parameters.HOST_UUID }} successfully Restarted ! ",
+"STATUS":"COMPlETED"
+}
