@@ -12,6 +12,36 @@ stages:
   jobs:
   - job: ListVMs
     steps:
+- task: Bash@3
+  env:
+    PRISM_IP: $(PRISM_ELEMENT_FQDN)  # Your IP address
+  inputs:
+    targetType: 'inline'
+    script: |
+      #!/bin/bash
+      set -e
+      
+      echo "=== IP AVAILABILITY TEST: $PRISM_IP ==="
+      
+      # 1. Ping test (ICMP)
+      echo "1. Ping $PRISM_IP..."
+      if ping -c 3 -W 5 "$PRISM_IP" >/dev/null 2>&1; then
+        echo "✅ PING OK"
+      else
+        echo "❌ PING FAILED - host down/firewall"
+        exit 1
+      fi
+      
+      # 2. Port 9440 TCP test
+      echo -e "\n2. Port 9440..."
+      if timeout 5 bash -c "</dev/tcp/$PRISM_IP/9440" 2>/dev/null; then
+        echo "✅ PORT 9440 OPEN"
+      else
+        echo "❌ PORT 9440 CLOSED/FIREWALL"
+        exit 1
+      fi
+      
+      echo -e "\n✅ IP $PRISM_IP IS AVAILABLE FROM AGENT"
     - task: Bash@3
       name: 'ListNutanixVMs'
       displayName: 'Connect to Prism Element and list VMs'
