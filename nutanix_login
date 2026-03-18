@@ -1,0 +1,76 @@
+trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+- group: name_of_group
+
+stages:
+- stage: ListNutanixVMs
+  jobs:
+  - job: ListVMs
+    steps:
+    - task: Bash@3
+      name: 'ListNutanixVMs'
+      displayName: 'Connect to Prism Element and list VMs'
+      env:
+        PRISM_FQDN: $(prismElementFqdn)
+        PRISM_USER: $(prismUsername)
+        PRISM_PASS: $(prismPassword)
+      inputs:
+        targetType: 'inline'
+        script: |
+          #!/bin/bash
+          set -e
+          
+          # Prism Element v3 API endpoint
+          BASE_URL="https://${PRISM_FQDN}:9440/PrismGateway/services/rest/v3.0"
+          
+          # Create Basic Auth header
+          AUTH_STRING="${PRISM_USER}:${PRISM_PASS}"
+          ENCODED_AUTH=$(echo -n "$AUTH_STRING" | base64 -w 0)
+          
+          # Headers
+          HEADERS=(
+            "-H" "Authorization: Basic ${ENCODED_AUTH}"
+            "-H" "Content-Type: application/json"
+          )
+          
+          echo "Connecting to Prism Element: ${PRISM_FQDN}"
+          
+          # POST payload for VM list
+          PAYLOAD='{
+            "kind": ["vm"],
+            "filter": []
+          }'
+          
+          URI="${BASE_URL}/vms/list"
+          
+          echo "Calling API: ${URI}"
+          
+          # Make API call (skip SSL verification for self-signed certs)
+          RESPONSE=$(curl -k -s -X POST "${HEADERS[@]}" \
+            -d "${PAYLOAD}" \
+            "${URI}")
+          
+          # Check if response contains error
+          if echo "$RESPONSE" | grep -q '"invalidCredentials"'; then
+            echo "ERROR: Authentication failed - check username/password"
+            exit 1
+          fi
+          
+          # Parse JSON response (requires jq)
+          TOTAL_VMS=$(echo "$RESPONSE" | jq -r '.metadata.total_matches // 0')
+          
+          echo "=== VM LIST SUCCESS ==="
+          echo "Total VMs found: ${TOTAL_VMS}"
+          
+          # Display first 10 VMs
+          echo "$RESPONSE" | jq -r '.entities[] | 
+            "VM: \(.spec.name) | Power: \(.status.resources.power_state // "unknown") | vCPU: \(.spec.resources.guest_tools.num_vcpus // "N/A")"' | 
+            head -10
+          
+          # Set pipeline variable
+          echo "##vso[task.setvariable variable=vmCount;isOutput=true]${TOTAL_VMS}"
