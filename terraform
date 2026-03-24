@@ -1,0 +1,57 @@
+trigger:
+- none  # run manually for testing
+
+variables:
+  terraformWorkingDirectory: 'infra'  # path to your .tf files
+  terraformVersion: '1.10.5'
+
+  # Azure + storage backend
+  azResourceGroupName: 'rg-terraform-state'
+  azStorageAccountName: 'sttfstate001'  # your SA name
+  azContainerName: 'tfstate'
+  azLocation: 'westeurope'
+
+stages:
+- stage: init_plan
+  displayName: 'Init & Plan'
+  jobs:
+  - job: terraform
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - checkout: self
+
+    # Install Terraform
+    - task: TerraformInstaller@1
+      displayName: 'Install Terraform'
+      inputs:
+        terraformVersion: '$(terraformVersion)'
+
+    # Set Terraform backend file based on your setup
+    - task: Bash@3
+      displayName: 'Write backend config'
+      inputs:
+        targetType: 'inline'
+        script: |
+          set -euo pipefail
+          tee "$(terraformWorkingDirectory)/backend.tf" > /dev/null <<EOF
+          terraform {
+            backend "azurerm" {
+              resource_group_name  = "$(azResourceGroupName)"
+              storage_account_name = "$(azStorageAccountName)"
+              container_name       = "$(azContainerName)"
+              key                  = "terraform.tfstate"
+            }
+          }
+          EOF
+
+    # Init + Plan
+    - task: Bash@3
+      displayName: 'Terraform init & plan'
+      inputs:
+        targetType: 'inline'
+        script: |
+          set -euo pipefail
+          cd '$(terraformWorkingDirectory)'
+          terraform init -input=false
+          terraform plan -out=tfplan -input=false -no-color
