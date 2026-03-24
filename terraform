@@ -2,14 +2,17 @@ trigger:
 - none  # run manually for testing
 
 variables:
-  terraformWorkingDirectory: 'infra'  # path to your .tf files
+  terraformWorkingDirectory: 'infra'  # your .tf dir
   terraformVersion: '1.10.5'
 
   # Azure + storage backend
   azResourceGroupName: 'rg-terraform-state'
-  azStorageAccountName: 'sttfstate001'  # your SA name
-  azContainerName: 'tfstate'
-  azLocation: 'westeurope'
+  azStorageAccountName: 'sttfstate001'   # your storage account
+  azContainerName: 'tfstate'            # your container
+  azKey: 'test.tfstate'                 # state file name
+
+  # Your service connection name in Azure DevOps
+  serviceConnectionName: 'sc-azure-dev'   # change to your actual service connection
 
 stages:
 - stage: init_plan
@@ -27,20 +30,33 @@ stages:
       inputs:
         terraformVersion: '$(terraformVersion)'
 
-    # Set Terraform backend file based on your setup
+    # Azure login via service connection (required for backend)
+    - task: AzureCLI@2
+      displayName: 'Azure login (service connection)'
+      inputs:
+        azureSubscription: '$(serviceConnectionName)'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          echo "Logged in via service connection."
+
+    # Generate backend config (no secrets in code)
     - task: Bash@3
       displayName: 'Write backend config'
       inputs:
         targetType: 'inline'
         script: |
           set -euo pipefail
-          tee "$(terraformWorkingDirectory)/backend.tf" > /dev/null <<EOF
+          cd '$(terraformWorkingDirectory)'
+          tee backend.tf > /dev/null <<EOF
           terraform {
             backend "azurerm" {
               resource_group_name  = "$(azResourceGroupName)"
               storage_account_name = "$(azStorageAccountName)"
               container_name       = "$(azContainerName)"
-              key                  = "terraform.tfstate"
+              key                  = "$(azKey)"
+              # Terraform will use ADO service connection via OIDC / Azure auth
+              # No client_id/client_secret in the file
             }
           }
           EOF
