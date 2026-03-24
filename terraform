@@ -1,22 +1,22 @@
 trigger:
-- none  # run manually for testing
+- none  # run manually
 
 variables:
-  terraformWorkingDirectory: 'infra'  # your .tf dir
+  terraformWorkingDirectory: 'infra'
   terraformVersion: '1.10.5'
 
-  # Azure + storage backend
+  # Your existing Azure resources
   azResourceGroupName: 'rg-terraform-state'
-  azStorageAccountName: 'sttfstate001'   # your storage account
-  azContainerName: 'tfstate'            # your container
-  azKey: 'test.tfstate'                 # state file name
+  azStorageAccountName: 'sttfstateunq001'
+  azContainerName: 'tfstate'
+  azStateKey: 'your-app.tfstate'
 
-  # Your service connection name in Azure DevOps
-  serviceConnectionName: 'sc-azure-dev'   # change to your actual service connection
+  # Your Azure service connection name in ADO
+  serviceConnectionName: 'sc-azure-dev'  # change to your actual connection
 
 stages:
-- stage: init_plan
-  displayName: 'Init & Plan'
+- stage: init_plan_apply
+  displayName: 'Test storage backend with plan & apply'
   jobs:
   - job: terraform
     pool:
@@ -24,13 +24,11 @@ stages:
     steps:
     - checkout: self
 
-    # Install Terraform
     - task: TerraformInstaller@1
       displayName: 'Install Terraform'
       inputs:
         terraformVersion: '$(terraformVersion)'
 
-    # Azure login via service connection (required for backend)
     - task: AzureCLI@2
       displayName: 'Azure login (service connection)'
       inputs:
@@ -40,7 +38,7 @@ stages:
         inlineScript: |
           echo "Logged in via service connection."
 
-    # Generate backend config (no secrets in code)
+    # Just write backend config (no secrets)
     - task: Bash@3
       displayName: 'Write backend config'
       inputs:
@@ -54,20 +52,29 @@ stages:
               resource_group_name  = "$(azResourceGroupName)"
               storage_account_name = "$(azStorageAccountName)"
               container_name       = "$(azContainerName)"
-              key                  = "$(azKey)"
-              # Terraform will use ADO service connection via OIDC / Azure auth
-              # No client_id/client_secret in the file
+              key                  = "$(azStateKey)"
             }
           }
           EOF
+          cat backend.tf
 
-    # Init + Plan
+    # Init + Plan + Apply (simple test resource)
     - task: Bash@3
-      displayName: 'Terraform init & plan'
+      displayName: 'Terraform init, plan, apply'
       inputs:
         targetType: 'inline'
         script: |
           set -euo pipefail
           cd '$(terraformWorkingDirectory)'
+
+          # Write a tiny test resource (e.g., a resource group)
+          tee main.tf > /dev/null <<EOF
+          resource "azurerm_resource_group" "test" {
+            name     = "rg-test-storage-avail"
+            location = "westeurope"
+          }
+          EOF
+
           terraform init -input=false
           terraform plan -out=tfplan -input=false -no-color
+          terraform apply -input=false -no-color -auto-approve=false tfplan
