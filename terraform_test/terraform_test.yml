@@ -30,3 +30,13 @@ steps:
   env:
     ARM_USE_OIDC: true
     ARM_SUBSCRIPTION_ID: $(subscriptionId)
+
+- task: TerraformCLI@0
+  displayName: 'Terraform Apply'
+  inputs:
+    command: 'apply'
+    commandOptions: '-auto-approve'
+    workingDirectory: '$(terraformWorkingDir)'
+  env:
+    ARM_USE_OIDC: true
+    ARM_SUBSCRIPTION_ID: $(subscriptionId)    
