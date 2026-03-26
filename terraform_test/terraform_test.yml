@@ -1,0 +1,32 @@
+trigger:
+- main
+
+pool:
+  vmImage: ubuntu‑latest
+
+variables:
+  terraformWorkingDir: '$(System.DefaultWorkingDirectory)/Pipelines/terraform_test'
+
+steps:
+- task: TerraformInstaller@0
+  displayName: 'Install Terraform'
+  inputs:
+    terraformVersion: 'latest'
+
+- task: TerraformCLI@0
+  displayName: 'Terraform Init'
+  inputs:
+    command: 'init'
+    workingDirectory: '$(terraformWorkingDir)'
+  env:
+    ARM_USE_OIDC: true
+    ARM_SUBSCRIPTION_ID: $(subscriptionId)
+
+- task: TerraformCLI@0
+  displayName: 'Terraform Plan'
+  inputs:
+    command: 'plan'
+    workingDirectory: '$(terraformWorkingDir)'
+  env:
+    ARM_USE_OIDC: true
+    ARM_SUBSCRIPTION_ID: $(subscriptionId)
