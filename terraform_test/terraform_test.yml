@@ -8,35 +8,37 @@ variables:
   terraformWorkingDir: '$(System.DefaultWorkingDirectory)/Pipelines/terraform_test'
 
 steps:
+# 1. Install Terraform (if not using a different task)
 - task: TerraformInstaller@0
   displayName: 'Install Terraform'
   inputs:
     terraformVersion: 'latest'
 
-- task: TerraformCLI@0
-  displayName: 'Terraform Init'
+# 2. Azure login + Terraform init/plan (uses service connection)
+- task: AzureCLI@2
+  displayName: 'Terraform Init & Plan'
   inputs:
-    command: 'init'
-    workingDirectory: '$(terraformWorkingDir)'
-  env:
-    ARM_USE_OIDC: true
-    ARM_SUBSCRIPTION_ID: $(subscriptionId)
+    azureSubscription: 'AzureServiceConnection'   # 👈 service connection name
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      cd $(terraformWorkingDir)
 
-- task: TerraformCLI@0
-  displayName: 'Terraform Plan'
-  inputs:
-    command: 'plan'
-    workingDirectory: '$(terraformWorkingDir)'
-  env:
-    ARM_USE_OIDC: true
-    ARM_SUBSCRIPTION_ID: $(subscriptionId)
+      terraform init
+      terraform plan -out=tfplan
 
-- task: TerraformCLI@0
+      # Optional: confirm state file exists in Azure Storage
+      az storage blob list \
+        --account-name yourstorageaccount \
+        --container-name tfstate \
+        --auth-mode login
+
+- task: AzureCLI@2
   displayName: 'Terraform Apply'
   inputs:
-    command: 'apply'
-    commandOptions: '-auto-approve'
-    workingDirectory: '$(terraformWorkingDir)'
-  env:
-    ARM_USE_OIDC: true
-    ARM_SUBSCRIPTION_ID: $(subscriptionId)    
+    azureSubscription: 'AzureServiceConnection'
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      cd $(terraformWorkingDir)
+      terraform apply -auto-approve
