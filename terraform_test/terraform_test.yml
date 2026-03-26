@@ -42,3 +42,30 @@ steps:
     inlineScript: |
       cd $(terraformWorkingDir)
       terraform apply -auto-approve
+
+- task: AzureCLI@2
+  displayName: 'Check tfstate blob in Storage Account'
+  inputs:
+    azureSubscription: 'AzureServiceConnection'
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      STORAGE_ACCOUNT="yourstorageaccount"
+      CONTAINER="tfstate"
+      STATE_BLOB="test.tfstate"
+
+      echo "Checking for state blob: https://${STORAGE_ACCOUNT}.blob.core.windows.net/${CONTAINER}/${STATE_BLOB}"
+
+      az storage blob exists \
+        --account-name ${STORAGE_ACCOUNT} \
+        --container-name ${CONTAINER} \
+        --name ${STATE_BLOB} \
+        --auth-mode login
+
+      EXIT_CODE=$?
+      if [ ${EXIT_CODE} -eq 0 ]; then
+        echo "✅ State file ${STATE_BLOB} exists."
+      else
+        echo "❌ State file ${STATE_BLOB} not found or error occurred."
+        exit 1
+      fi      
