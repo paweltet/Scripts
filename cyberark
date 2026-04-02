@@ -1,0 +1,18 @@
+steps:
+- powershell: |
+    # 1. Get TGT (token) from CyberArk
+    $authUri = "https://your-pvwa.cyberark.local/PasswordVault/api/auth/CyberArk/Logon"
+    $body = @{ username = "$(CA_USER)"; password = "$(CA_PASSWORD)" } | ConvertTo-Json
+    $headers = @{ "Content-Type" = "application/json" }
+    $token = (Invoke-RestMethod -Uri $authUri -Method Post -Body $body -Headers $headers).value
+
+    # 2. Retrieve account
+    $getAccountUri = "https://your-pvwa.cyberark.local/PasswordVault/api/Accounts?filter=SafeName=$(CA_SAFE)&search=$(CA_ACCOUNT_NAME)"
+    $account = Invoke-RestMethod -Uri $getAccountUri -Method Get -Headers @{ "Authorization" = $token }
+
+    # 3. Get password
+    $getPassUri = "https://your-pvwa.cyberark.local/PasswordVault/api/Accounts/$($account.id)/Password/Retrieve"
+    $cred = Invoke-RestMethod -Uri $getPassUri -Method Get -Headers @{ "Authorization" = $token } -Body @{ reason = "CI/CD build" }
+
+    # 4. Set as pipeline secret (exposed to next steps)
+    Write-Host "##vso[task.setvariable variable=MY_DB_PASSWORD;issecret=true;]$($cred.Content)"
