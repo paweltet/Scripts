@@ -1,18 +1,57 @@
+# azure-pipelines.yml
+trigger:
+- main
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  PVWA_URL: 'https://your-pvwa.cyberark.local/PasswordVault'
+  CA_SAFE: 'YourSafeName'
+  CA_ACCOUNT_NAME: 'db-service-account'
+  CA_USER: $(CA_USER)      # ADO library variable group / secret
+  CA_PASSWORD: $(CA_PASSWORD)
+
 steps:
-- powershell: |
-    # 1. Get TGT (token) from CyberArk
-    $authUri = "https://your-pvwa.cyberark.local/PasswordVault/api/auth/CyberArk/Logon"
-    $body = @{ username = "$(CA_USER)"; password = "$(CA_PASSWORD)" } | ConvertTo-Json
-    $headers = @{ "Content-Type" = "application/json" }
-    $token = (Invoke-RestMethod -Uri $authUri -Method Post -Body $body -Headers $headers).value
+  - task: PowerShell@2
+    displayName: 'Get credential from CyberArk'
+    env:
+      PVWA_URL: $(PVWA_URL)
+      CA_SAFE: $(CA_SAFE)
+      CA_ACCOUNT_NAME: $(CA_ACCOUNT_NAME)
+      CA_USER: $(CA_USER)
+      CA_PASSWORD: $(CA_PASSWORD)
+    inputs:
+      targetType: inline
+      script: |
+        # 1. Log in and get token
+        $authUri = "$PVWA_URL/api/auth/CyberArk/Logon"
+        $body = @{
+          username = $CA_USER
+          password = $CA_PASSWORD
+        } | ConvertTo-Json -Compress
+        $headers = @{ "Content-Type" = "application/json" }
+        $token = (Invoke-RestMethod -Uri $authUri -Method Post -Body $body -Headers $headers).value
 
-    # 2. Retrieve account
-    $getAccountUri = "https://your-pvwa.cyberark.local/PasswordVault/api/Accounts?filter=SafeName=$(CA_SAFE)&search=$(CA_ACCOUNT_NAME)"
-    $account = Invoke-RestMethod -Uri $getAccountUri -Method Get -Headers @{ "Authorization" = $token }
+        # 2. Find account by Safe and search hint
+        $getAccountUri = "$PVWA_URL/api/Accounts?filter=SafeName=$CA_SAFE&search=$CA_ACCOUNT_NAME"
+        $account = Invoke-RestMethod -Uri $getAccountUri -Method Get -Headers @{ "Authorization" = $token }
 
-    # 3. Get password
-    $getPassUri = "https://your-pvwa.cyberark.local/PasswordVault/api/Accounts/$($account.id)/Password/Retrieve"
-    $cred = Invoke-RestMethod -Uri $getPassUri -Method Get -Headers @{ "Authorization" = $token } -Body @{ reason = "CI/CD build" }
+        if ($account -is [array]) { $account = $account[0] }
 
-    # 4. Set as pipeline secret (exposed to next steps)
-    Write-Host "##vso[task.setvariable variable=MY_DB_PASSWORD;issecret=true;]$($cred.Content)"
+        # 3. Retrieve password
+        $getPassUri = "$PVWA_URL/api/Accounts/$($account.id)/Password/Retrieve"
+        $cred = Invoke-RestMethod -Uri $getPassUri -Method Get -Headers @{ "Authorization" = $token } -Body @{ reason = "ADO pipeline run" }
+
+        # 4. Expose as secret pipeline variable
+        Write-Host "##vso[task.setvariable variable=MY_DB_PASSWORD;issecret=true;]$($cred.Content)"
+
+  - task: PowerShell@2
+    displayName: 'Use the secret'
+    env:
+      MY_DB_PASSWORD: $(MY_DB_PASSWORD)
+    inputs:
+      targetType: inline
+      script: |
+        Write-Host "Password length is $((ConvertTo-SecureString $env:MY_DB_PASSWORD).Length) chars"
+        # Here you would connect to DB, run tests, etc.
