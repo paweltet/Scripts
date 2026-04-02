@@ -1,0 +1,67 @@
+#!/bin/bash
+set -e
+
+# --- Config
+PVWA_URL="https://your-pvwa.cyberark.local/PasswordVault"
+CA_SAFE="YourSafeName"
+CA_ACCOUNT_NAME="db-service-account"
+CA_USER="your-cyberark-user"
+CA_PASSWORD="your-cyberark-password"
+
+# --- Authenticate
+echo "Logging in to CyberArk..."
+auth_response=$(curl -sS -k -X POST \
+  -H "Content-Type: application/json" \
+  -d "{\"username\":\"$CA_USER\",\"password\":\"$CA_PASSWORD\"}" \
+  "$PVWA_URL/api/auth/CyberArk/Logon")
+
+AUTH_TOKEN=$(echo "$auth_response" | grep -o '"value":"[^"]*' | cut -d'"' -f4)
+
+if [ -z "$AUTH_TOKEN" ]; then
+  echo "Login failed; response was: $auth_response"
+  exit 1
+fi
+
+echo "Got CyberArk token (masked): ${AUTH_TOKEN:0:10}..."
+
+# --- Get account info
+echo "Looking up account in Safe '$CA_SAFE'..."
+get_account_url="$PVWA_URL/api/Accounts?filter=SafeName=$CA_SAFE&search=$CA_ACCOUNT_NAME"
+account_response=$(curl -kS -X GET \
+  -H "Authorization: $AUTH_TOKEN" \
+  "$get_account_url")
+
+ACCOUNT_ID=$(echo "$account_response" | grep -o '"id":"[^"]*' | cut -d'"' -f4)
+if [ -z "$ACCOUNT_ID" ]; then
+  echo "Failed to find account; response was: $account_response"
+  exit 1
+fi
+
+echo "Found account ID: $ACCOUNT_ID"
+
+# --- Retrieve password
+echo "Retrieving password..."
+reason="CI/CD job"
+get_password_url="$PVWA_URL/api/Accounts/$ACCOUNT_ID/Password/Retrieve"
+retrieve_body=$(printf '{"reason":"%s"}' "$reason")
+
+password_response=$(curl -s -k -X GET \
+  -H "Authorization: $AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "$retrieve_body" \
+  "$get_password_url")
+
+PASSWORD=$(echo "$password_response" | grep -o '"Content":"[^"]*' | cut -d'"' -f4)
+
+if [ -z "$PASSWORD" ]; then
+  echo "Failed to get password; response was: $password_response"
+  exit 1
+fi
+
+# --- Log out
+curl -k -X POST "$PVWA_URL/api/Auth/Logoff" -H "Authorization: $AUTH_TOKEN" >/dev/null 2>&1
+
+# --- Demo: use it (you would call your app, DB, etc.)
+echo "Password length is ${#PASSWORD} characters"
+echo "Password first 8 chars: ${PASSWORD:0:8}..."
+# Example: psql -h dbhost -U user -d dbname -c "..." --password="$PASSWORD"
