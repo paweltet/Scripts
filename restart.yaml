@@ -1,0 +1,44 @@
+    - task: Bash@3
+      name: 'TriggerACPIReboot'
+      displayName: 'Connect to Prism Central and trigger ACPI reboot'
+      env:
+        PRISM_FQDN: $(PRISM_ELEMENT_FQDN)
+        PRISM_USER: $(PRISM_USERNAME)
+        PRISM_PASS: $(PRISM_PASSWORD)
+      inputs:
+        targetType: 'inline'
+        script: |
+          #!/bin/bash
+          set -e
+          
+          UUID = "8fb80e5d-529b-416d-5a19-1b6efd50b16c" # hardcoded for now
+
+          # Prism Central v3 API endpoint
+          BASE_URL="https://${PRISM_FQDN}:9440/api/nutanix/v3/vms/${UUID}/acpi_reboot"
+          
+          # Create Basic Auth header
+          AUTH_STRING="${PRISM_USER}:${PRISM_PASS}"
+          ENCODED_AUTH=$(echo -n "$AUTH_STRING" | base64 -w 0)
+          
+          # Headers
+          HEADERS=(
+            "-H" "Authorization: Basic ${ENCODED_AUTH}"
+            "-H" "Content-Type: application/json"
+          )
+          
+          echo "Connecting to Prism Central: $PRISM_FQDN"
+                   
+          echo "Calling API: ${BASE_URL}"
+          
+          # Make API call (skip SSL verification for self-signed certs)
+          RESPONSE=$(curl -k -v -s -X POST "${HEADERS[@]}" \
+            "${BASE_URL}")
+          
+          # Check if response contains error
+          if echo "$RESPONSE" | grep -q '"invalidCredentials"'; then
+            echo "ERROR: Authentication failed - check username/password"
+            exit 1
+          fi
+          
+          # Return response
+          echo "$RESPONSE"
