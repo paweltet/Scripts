@@ -1,54 +1,11 @@
-trigger:
-- main
 
-pool:
-  vmImage: 'ubuntu-latest'
-
-variables:
-- group: name_of_group
-
-stages:
-- stage: ListNutanixVMs
-  jobs:
-  - job: ListVMs
-    steps:
-- task: Bash@3
-  env:
-    PRISM_IP: $(PRISM_ELEMENT_FQDN)  # Your IP address
-  inputs:
-    targetType: 'inline'
-    script: |
-      #!/bin/bash
-      set -e
-      
-      echo "=== IP AVAILABILITY TEST: $PRISM_IP ==="
-      
-      # 1. Ping test (ICMP)
-      echo "1. Ping $PRISM_IP..."
-      if ping -c 3 -W 5 "$PRISM_IP" >/dev/null 2>&1; then
-        echo "✅ PING OK"
-      else
-        echo "❌ PING FAILED - host down/firewall"
-        exit 1
-      fi
-      
-      # 2. Port 9440 TCP test
-      echo -e "\n2. Port 9440..."
-      if timeout 5 bash -c "</dev/tcp/$PRISM_IP/9440" 2>/dev/null; then
-        echo "✅ PORT 9440 OPEN"
-      else
-        echo "❌ PORT 9440 CLOSED/FIREWALL"
-        exit 1
-      fi
-      
-      echo -e "\n✅ IP $PRISM_IP IS AVAILABLE FROM AGENT"
     - task: Bash@3
       name: 'ListNutanixVMs'
       displayName: 'Connect to Prism Element and list VMs'
       env:
-        PRISM_FQDN: $(prismElementFqdn)
-        PRISM_USER: $(prismUsername)
-        PRISM_PASS: $(prismPassword)
+        PRISM_FQDN: $(PRISM_ELEMENT_FQDN)
+        PRISM_USER: $(PRISM_USERNAME)
+        PRISM_PASS: $(PRISM_PASSWORD)
       inputs:
         targetType: 'inline'
         script: |
@@ -56,10 +13,10 @@ stages:
           set -e
           
           # Prism Element v3 API endpoint
-          BASE_URL="https://${PRISM_FQDN}:9440/PrismGateway/services/rest/v3.0"
+          BASE_URL="${PRISM_FQDN}:9440/api/nutanix/v3/vms/list"
           
           # Create Basic Auth header
-          AUTH_STRING="${PRISM_USER}:${PRISM_PASS}"
+          AUTH_STRING="htps://${PRISM_USER}:${PRISM_PASS}"
           ENCODED_AUTH=$(echo -n "$AUTH_STRING" | base64 -w 0)
           
           # Headers
@@ -68,7 +25,7 @@ stages:
             "-H" "Content-Type: application/json"
           )
           
-          echo "Connecting to Prism Element: ${PRISM_FQDN}"
+          echo "Connecting to Prism Element: $PRISM_FQDN"
           
           # POST payload for VM list
           PAYLOAD='{
