@@ -1,6 +1,6 @@
     - task: Bash@3
       name: 'ListNutanixVMs'
-      displayName: 'Connect to Prism Element and list VMs'
+      displayName: 'Connect to Prism Central and list VMs'
       env:
         PRISM_FQDN: $(PRISM_ELEMENT_FQDN)
         PRISM_USER: $(PRISM_USERNAME)
@@ -11,7 +11,7 @@
           #!/bin/bash
           set -e
           
-          # Prism Element v3 API endpoint
+          # Prism Central v3 API endpoint
           BASE_URL="https://${PRISM_FQDN}:9440/api/nutanix/v3/vms/list"
           
           # Create Basic Auth header
@@ -24,22 +24,24 @@
             "-H" "Content-Type: application/json"
           )
           
-          echo "Connecting to Prism Element: $PRISM_FQDN"
+          echo "Connecting to Prism Central: $PRISM_FQDN"
           
           # POST payload for VM list
           PAYLOAD='{
-            "kind": ["vm"],
-            "filter": []
+              "kind": "vm",
+              "offset": 0,
+              "length": 1000,
+              "sort_order": "ASCENDING",
+              "sort_attribute": "Name"
           }'
           
-          URI="${BASE_URL}/vms/list"
-          
-          echo "Calling API: ${URI}"
+                   
+          echo "Calling API: ${BASE_URL}"
           
           # Make API call (skip SSL verification for self-signed certs)
           RESPONSE=$(curl -k -v -s -X POST "${HEADERS[@]}" \
             -d "${PAYLOAD}" \
-            "${URI}")
+            "${BASE_URL}")
           
           # Check if response contains error
           if echo "$RESPONSE" | grep -q '"invalidCredentials"'; then
