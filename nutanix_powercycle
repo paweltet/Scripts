@@ -38,10 +38,8 @@ parameters:
 
       case "${ACTION}" in
         ON|OFF)
-          TARGET_STATE="${ACTION}"
           ;;
         RESTART)
-          TARGET_STATE="RESTART"
           ;;
         *)
           echo "ERROR: invalid action '${ACTION}'. Use ON, OFF, or RESTART."
@@ -71,8 +69,11 @@ parameters:
       VM_RESPONSE=$(curl -k -s -X GET "${HEADERS[@]}" \
         "${BASE_URL}/vms/${VM_UUID}")
 
-      if [[ "${TARGET_STATE}" == "RESTART" ]]; then
-        OFF_BODY=$(echo "$VM_RESPONSE" | jq 'del(.status) | .spec.resources.power_state = "OFF"')
+      if [[ "${ACTION}" == "RESTART" ]]; then
+        OFF_BODY=$(echo "$VM_RESPONSE" | jq --arg STATE "OFF" '
+          del(.status) |
+          .spec.resources.power_state = $STATE
+        ')
         curl -k -s -X PUT "${HEADERS[@]}" \
           -d "${OFF_BODY}" \
           "${BASE_URL}/vms/${VM_UUID}" >/dev/null
@@ -82,12 +83,18 @@ parameters:
         VM_RESPONSE=$(curl -k -s -X GET "${HEADERS[@]}" \
           "${BASE_URL}/vms/${VM_UUID}")
 
-        ON_BODY=$(echo "$VM_RESPONSE" | jq 'del(.status) | .spec.resources.power_state = "ON"')
+        ON_BODY=$(echo "$VM_RESPONSE" | jq --arg STATE "ON" '
+          del(.status) |
+          .spec.resources.power_state = $STATE
+        ')
         UPDATE_RESPONSE=$(curl -k -s -X PUT "${HEADERS[@]}" \
           -d "${ON_BODY}" \
           "${BASE_URL}/vms/${VM_UUID}")
       else
-        UPDATED_BODY=$(echo "$VM_RESPONSE" | jq 'del(.status) | .spec.resources.power_state = env.TARGET_STATE')
+        UPDATED_BODY=$(echo "$VM_RESPONSE" | jq --arg STATE "$ACTION" '
+          del(.status) |
+          .spec.resources.power_state = $STATE
+        ')
         UPDATE_RESPONSE=$(curl -k -s -X PUT "${HEADERS[@]}" \
           -d "${UPDATED_BODY}" \
           "${BASE_URL}/vms/${VM_UUID}")
