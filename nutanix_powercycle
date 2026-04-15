@@ -41,7 +41,7 @@ parameters:
           TARGET_STATE="${ACTION}"
           ;;
         RESTART)
-          TARGET_STATE="powercycle"
+          TARGET_STATE="RESTART"
           ;;
         *)
           echo "ERROR: invalid action '${ACTION}'. Use ON, OFF, or RESTART."
@@ -51,7 +51,6 @@ parameters:
 
       echo "Target VM: ${VM_NAME}"
       echo "Requested action: ${ACTION}"
-      echo "Mapped power state: ${TARGET_STATE}"
 
       LIST_PAYLOAD='{"kind":"vm","offset":0,"length":1000}'
       LIST_RESPONSE=$(curl -k -s -X POST "${HEADERS[@]}" \
@@ -72,12 +71,29 @@ parameters:
       VM_RESPONSE=$(curl -k -s -X GET "${HEADERS[@]}" \
         "${BASE_URL}/vms/${VM_UUID}")
 
-      UPDATED_BODY=$(echo "$VM_RESPONSE" | jq --arg STATE "$TARGET_STATE" '
-        .spec.resources.power_state = $STATE
-      ')
+      if [[ "${TARGET_STATE}" == "RESTART" ]]; then
+        OFF_BODY=$(echo "$VM_RESPONSE" | jq '.spec.resources.power_state = "OFF"')
+        curl -k -s -X PUT "${HEADERS[@]}" \
+          -d "${OFF_BODY}" \
+          "${BASE_URL}/vms/${VM_UUID}" >/dev/null
 
-      UPDATE_RESPONSE=$(curl -k -s -X PUT "${HEADERS[@]}" \
-        -d "${UPDATED_BODY}" \
-        "${BASE_URL}/vms/${VM_UUID}")
+        sleep 20
+
+        VM_RESPONSE=$(curl -k -s -X GET "${HEADERS[@]}" \
+          "${BASE_URL}/vms/${VM_UUID}")
+
+        ON_BODY=$(echo "$VM_RESPONSE" | jq '.spec.resources.power_state = "ON"')
+        UPDATE_RESPONSE=$(curl -k -s -X PUT "${HEADERS[@]}" \
+          -d "${ON_BODY}" \
+          "${BASE_URL}/vms/${VM_UUID}")
+      else
+        UPDATED_BODY=$(echo "$VM_RESPONSE" | jq --arg STATE "$TARGET_STATE" '
+          .spec.resources.power_state = $STATE
+        ')
+
+        UPDATE_RESPONSE=$(curl -k -s -X PUT "${HEADERS[@]}" \
+          -d "${UPDATED_BODY}" \
+          "${BASE_URL}/vms/${VM_UUID}")
+      fi
 
       echo "$UPDATE_RESPONSE" | jq .
