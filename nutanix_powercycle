@@ -96,6 +96,7 @@ parameters:
       echo "$UPDATE_RESPONSE" | jq .
 
 
+Target VM: Automation-test
 Requested action: OFF
 {
   "api_version": "3.1",
@@ -103,8 +104,9 @@ Requested action: OFF
   "message_list": [
     {
       "details": {
-        "": [
-          "Additional properties are not allowed ('status' was unexpected)"
+        "spec.resources.power_state": [
+          "None is not of type 'string'",
+          "None is not one of ['ON', 'OFF']"
         ]
       },
       "message": "Request could not be processed.",
@@ -113,4 +115,3 @@ Requested action: OFF
   ],
   "state": "ERROR"
 }
-
