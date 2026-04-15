@@ -97,3 +97,23 @@ parameters:
       fi
 
       echo "$UPDATE_RESPONSE" | jq .
+
+
+Requested action: OFF
+{
+  "api_version": "3.1",
+  "code": 422,
+  "message_list": [
+    {
+      "details": {
+        "": [
+          "Additional properties are not allowed ('status' was unexpected)"
+        ]
+      },
+      "message": "Request could not be processed.",
+      "reason": "INVALID_REQUEST"
+    }
+  ],
+  "state": "ERROR"
+}
+
