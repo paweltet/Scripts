@@ -1,0 +1,78 @@
+TOP:
+
+parameters:
+- name: vmName
+  displayName: VM name
+  type: string
+- name: powerState
+  displayName: Power state
+  type: string
+  default: OFF
+  values:
+  - ON
+  - OFF
+
+
+- task: Bash@3
+  name: ChangeNutanixVmPowerState
+  displayName: 'Change Nutanix VM power state'
+  env:
+    PRISM_FQDN: $(PRISM_ELEMENT_FQDN)
+    PRISM_USER: $(PRISM_USERNAME)
+    PRISM_PASS: $(PRISM_PASSWORD)
+    VM_NAME: ${{ parameters.vmName }}
+    POWER_STATE: ${{ parameters.powerState }}
+  inputs:
+    targetType: 'inline'
+    script: |
+      #!/bin/bash
+      set -euo pipefail
+
+      BASE_URL="https://${PRISM_FQDN}:9440/api/nutanix/v3"
+      AUTH_STRING="${PRISM_USER}:${PRISM_PASS}"
+      ENCODED_AUTH=$(echo -n "$AUTH_STRING" | base64 -w 0)
+
+      HEADERS=(
+        -H "Authorization: Basic ${ENCODED_AUTH}"
+        -H "Content-Type: application/json"
+      )
+
+      echo "Target VM: ${VM_NAME}"
+      echo "Requested power state: ${POWER_STATE}"
+
+      LIST_PAYLOAD=$(cat <<EOF
+      {
+        "kind": "vm",
+        "offset": 0,
+        "length": 1000
+      }
+EOF
+      )
+
+      LIST_RESPONSE=$(curl -k -s -X POST "${HEADERS[@]}" \
+        -d "${LIST_PAYLOAD}" \
+        "${BASE_URL}/vms/list")
+
+      VM_UUID=$(echo "$LIST_RESPONSE" | jq -r --arg NAME "$VM_NAME" '
+        .entities[]
+        | select(.spec.name == $NAME)
+        | .metadata.uuid
+      ' | head -1)
+
+      if [[ -z "${VM_UUID}" || "${VM_UUID}" == "null" ]]; then
+        echo "ERROR: VM not found: ${VM_NAME}"
+        exit 1
+      fi
+
+      VM_RESPONSE=$(curl -k -s -X GET "${HEADERS[@]}" \
+        "${BASE_URL}/vms/${VM_UUID}")
+
+      UPDATED_BODY=$(echo "$VM_RESPONSE" | jq --arg STATE "$POWER_STATE" '
+        .spec.resources.power_state = $STATE
+      ')
+
+      UPDATE_RESPONSE=$(curl -k -s -X PUT "${HEADERS[@]}" \
+        -d "${UPDATED_BODY}" \
+        "${BASE_URL}/vms/${VM_UUID}")
+
+      echo "$UPDATE_RESPONSE" | jq .
