@@ -2,15 +2,14 @@ TOP:
 
 parameters:
 - name: vmName
-  displayName: VM name
   type: string
-- name: powerState
-  displayName: Power state
+- name: action
   type: string
   default: OFF
   values:
   - ON
   - OFF
+  - RESTART
 
 
 - task: Bash@3
@@ -21,7 +20,7 @@ parameters:
     PRISM_USER: $(PRISM_USERNAME)
     PRISM_PASS: $(PRISM_PASSWORD)
     VM_NAME: ${{ parameters.vmName }}
-    POWER_STATE: ${{ parameters.powerState }}
+    ACTION: ${{ parameters.action }}
   inputs:
     targetType: 'inline'
     script: |
@@ -37,18 +36,24 @@ parameters:
         -H "Content-Type: application/json"
       )
 
+      case "${ACTION}" in
+        ON|OFF)
+          TARGET_STATE="${ACTION}"
+          ;;
+        RESTART)
+          TARGET_STATE="powercycle"
+          ;;
+        *)
+          echo "ERROR: invalid action '${ACTION}'. Use ON, OFF, or RESTART."
+          exit 1
+          ;;
+      esac
+
       echo "Target VM: ${VM_NAME}"
-      echo "Requested power state: ${POWER_STATE}"
+      echo "Requested action: ${ACTION}"
+      echo "Mapped power state: ${TARGET_STATE}"
 
-      LIST_PAYLOAD=$(cat <<EOF
-      {
-        "kind": "vm",
-        "offset": 0,
-        "length": 1000
-      }
-EOF
-      )
-
+      LIST_PAYLOAD='{"kind":"vm","offset":0,"length":1000}'
       LIST_RESPONSE=$(curl -k -s -X POST "${HEADERS[@]}" \
         -d "${LIST_PAYLOAD}" \
         "${BASE_URL}/vms/list")
@@ -67,7 +72,7 @@ EOF
       VM_RESPONSE=$(curl -k -s -X GET "${HEADERS[@]}" \
         "${BASE_URL}/vms/${VM_UUID}")
 
-      UPDATED_BODY=$(echo "$VM_RESPONSE" | jq --arg STATE "$POWER_STATE" '
+      UPDATED_BODY=$(echo "$VM_RESPONSE" | jq --arg STATE "$TARGET_STATE" '
         .spec.resources.power_state = $STATE
       ')
 
