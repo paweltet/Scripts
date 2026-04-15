@@ -72,7 +72,7 @@ parameters:
         "${BASE_URL}/vms/${VM_UUID}")
 
       if [[ "${TARGET_STATE}" == "RESTART" ]]; then
-        OFF_BODY=$(echo "$VM_RESPONSE" | jq '.spec.resources.power_state = "OFF"')
+        OFF_BODY=$(echo "$VM_RESPONSE" | jq 'del(.status) | .spec.resources.power_state = "OFF"')
         curl -k -s -X PUT "${HEADERS[@]}" \
           -d "${OFF_BODY}" \
           "${BASE_URL}/vms/${VM_UUID}" >/dev/null
@@ -82,15 +82,12 @@ parameters:
         VM_RESPONSE=$(curl -k -s -X GET "${HEADERS[@]}" \
           "${BASE_URL}/vms/${VM_UUID}")
 
-        ON_BODY=$(echo "$VM_RESPONSE" | jq '.spec.resources.power_state = "ON"')
+        ON_BODY=$(echo "$VM_RESPONSE" | jq 'del(.status) | .spec.resources.power_state = "ON"')
         UPDATE_RESPONSE=$(curl -k -s -X PUT "${HEADERS[@]}" \
           -d "${ON_BODY}" \
           "${BASE_URL}/vms/${VM_UUID}")
       else
-        UPDATED_BODY=$(echo "$VM_RESPONSE" | jq --arg STATE "$TARGET_STATE" '
-          .spec.resources.power_state = $STATE
-        ')
-
+        UPDATED_BODY=$(echo "$VM_RESPONSE" | jq 'del(.status) | .spec.resources.power_state = env.TARGET_STATE')
         UPDATE_RESPONSE=$(curl -k -s -X PUT "${HEADERS[@]}" \
           -d "${UPDATED_BODY}" \
           "${BASE_URL}/vms/${VM_UUID}")
