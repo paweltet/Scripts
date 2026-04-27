@@ -41,3 +41,17 @@
       Write-Host "REST:$response"
 
       Write-Host "Triggered Run ID: $($response.id)"
+
+
+
+Invoke-RestMethod: /mnt/vss/_work/_temp/b8def1cc-d991-4e2d-a7a9-8b0956b5793e.ps1:31
+Line |
+  31 |  $response = Invoke-RestMethod -Uri "https://dev.azure.com/Belfius-CCO …
+     |              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     |  {   "$id": "1",   "innerException": null,   "message": "The repository
+     | Belfius.CCoE.Nutanix.Provisioning in project
+     | d282fd1e-8f2f-40c2-ac9d-7beac0e00691 could not be retrieved. Verify the
+     | name and credentials being used and permissions.",   "typeName":
+     | "Microsoft.TeamFoundation.DistributedTask.Pipelines.ResourceValidationException, Microsoft.TeamFoundation.DistributedTask.WebApi",   "typeKey": "ResourceValidationException",   "errorCode": 0,   "eventId": 3000 }
+
+##[error]PowerShell exited with code '1'.
