@@ -1,0 +1,43 @@
+- task: Powershell@2
+  displayName: 'API call'
+  inputs:
+    targetType: inline
+    
+    script: |
+    
+      # Acquire token
+      $tokenBody = @{
+        client_id = "xxxx"
+        scope = "https://app.vssps.visualstudio.com/.default"
+        client_secret = "xxxx"
+        grant_type = "client_credentials"
+      }
+        
+      $tokenResp = Invoke-RestMethod -Uri "https://login.microsoftonline.com/xxxx/oauth2/v2.0/token" `
+        -Method Post -Body $tokenBody -ContentType "application/x-www-form-urlencoded"
+
+      # Trigger pipeline
+      $body = @{
+        templateParameters = @{
+          VM_NAME = "Test"
+          TEST_ENV = "true"
+          CPU_NUM = "2"
+        }
+        resources = @{
+          repositories = @{
+            self = @{ refName = "refs/heads/main" }
+          }
+        }
+      } | ConvertTo-Json -Depth 10
+
+      Write-Host "DEBUG"
+      Write-Host "BODY:$body"
+      
+      $response = Invoke-RestMethod -Uri "https://dev.azure.com/xxx/xxxx/_apis/pipelines/3355/runs?api-version=7.1" `
+        -Method Post -Body $body -Headers @{
+          Authorization = "Bearer $($tokenResp.access_token)"
+          "Content-Type" = "application/json"
+        }
+      Write-Host "REST:$response"
+
+      Write-Host "Triggered Run ID: $($response.id)"
